@@ -1,0 +1,4 @@
+led0 = verde
+led1 = azul
+led2 = vermelho
+led0 + led2 = amarelo

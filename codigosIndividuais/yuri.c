@@ -58,8 +58,7 @@ void main(void)
         printk("Error %d: failed to configure LED pin\n", ret);
         return;
     }
-    printk("LED blinking on %s pin %d\n", led.port->name, led.pin);
-
+    
     while (1) {
         // Toggle do LED usando a nova API
         gpio_pin_set_dt(&led, 0);
