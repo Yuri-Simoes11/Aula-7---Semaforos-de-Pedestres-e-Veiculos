@@ -1,10 +1,12 @@
 // Código sendo feito pelo Yuri
+// Há um semáforo de carros funcionando abaixo
 
 #include <zephyr/kernel.h>
-#include <zephyr/device.h>
 #include <zephyr/drivers/gpio.h>
-
-#define SLEEP_TIME_MS 500
+#include <zephyr/sys/printk.h>
+#include <zephyr/device.h>
+#include <stdint.h>
+#include <zephyr/logging/log.h>
 
 // Define o LED usando Device Tree
 #define LED0_NODE DT_ALIAS(led0) // Verde
@@ -30,8 +32,73 @@ static const struct gpio_dt_spec led2 = GPIO_DT_SPEC_GET(LED2_NODE, gpios);
 #error "Unsupported board: led2 devicetree alias is not defined"
 #endif
 
-void main(void)
-{
+#define STACK_SIZE 1024
+
+K_SEM_DEFINE(verde, 1, 1)
+K_SEM_DEFINE(amarelo, 0, 1)
+K_SEM_DEFINE(vermelho, 0, 1)
+
+void ledverde(void *p1, void *p2, void *p3) {
+
+    ARG_UNUSED(p1);
+    ARG_UNUSED(p2);
+    ARG_UNUSED(p3);
+
+    while(1){
+        k_sem_take(&verde, K_FOREVER);
+        gpio_pin_set_dt(&led, 1);
+        k_msleep(3000);
+        gpio_pin_set_dt(&led, 0);
+        k_sem_give(&amarelo);
+    }
+}
+
+void ledamarelo(void *p1, void *p2, void *p3) {
+
+    ARG_UNUSED(p1);
+    ARG_UNUSED(p2);
+    ARG_UNUSED(p3);
+
+    while(1){
+        k_sem_take(&amarelo, K_FOREVER);
+        gpio_pin_set_dt(&led, 1);
+        gpio_pin_set_dt(&led2, 1);
+        k_msleep(1000);
+        gpio_pin_set_dt(&led, 0);
+        gpio_pin_set_dt(&led2, 0);
+        k_sem_give(&vermelho);
+    }
+}
+
+void ledvermelho(void *p1, void *p2, void *p3) {
+
+    ARG_UNUSED(p1);
+    ARG_UNUSED(p2);
+    ARG_UNUSED(p3);
+
+    while(1){
+        k_sem_take(&vermelho, K_FOREVER);
+        gpio_pin_set_dt(&led2, 1);
+        k_msleep(4000);
+        gpio_pin_set_dt(&led2, 0);
+        k_sem_give(&verde);
+    }
+}
+
+// Definição das Threads
+K_THREAD_DEFINE(a_tid, STACK_SIZE, ledverde,
+                NULL, NULL, NULL,
+                5, 0, 0);
+
+K_THREAD_DEFINE(b_tid, STACK_SIZE, ledvermelho,
+                NULL, NULL, NULL,
+                5, 0, 0);
+
+K_THREAD_DEFINE(c_tid, STACK_SIZE, ledamarelo,
+                NULL, NULL, NULL,
+                5, 0, 0);
+
+void main(void) {
     int ret;
 
     // Verifica se o device está pronto
@@ -60,14 +127,6 @@ void main(void)
     }
     
     while (1) {
-        // Toggle do LED usando a nova API
-        gpio_pin_set_dt(&led, 0);
-        gpio_pin_set_dt(&led1, 0);
-        gpio_pin_set_dt(&led2, 1);
-        k_msleep(SLEEP_TIME_MS);
-        gpio_pin_set_dt(&led, 0);
-        gpio_pin_set_dt(&led1, 0);
-        gpio_pin_set_dt(&led2, 0);   
-        k_msleep(SLEEP_TIME_MS);
+        k_sleep(K_FOREVER);
     }
 }
