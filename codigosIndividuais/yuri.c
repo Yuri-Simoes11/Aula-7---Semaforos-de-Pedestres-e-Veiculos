@@ -37,7 +37,7 @@ static const struct gpio_dt_spec led2 = GPIO_DT_SPEC_GET(LED2_NODE, gpios);
 #endif
 
 atomic_t pedestre = ATOMIC_INIT(0);
-
+volatile int ciclos = 0;
 #define STACK_SIZE 1024
 
 K_SEM_DEFINE(verde, 0, 1);
@@ -93,6 +93,7 @@ void ledVermelho(void *p1, void *p2, void *p3) {
         gpio_pin_set_dt(&led2, 1);
         k_msleep(4000);
         gpio_pin_set_dt(&led2, 0);
+        ciclos++;
         k_sem_give(&verde);
     }
 }
@@ -133,6 +134,21 @@ void ledVerdePed(void *p1, void *p2, void *p3) {
     }
 }
 
+void controle(void *p1, void *p2, void *p3) {
+
+    ARG_UNUSED(p1);
+    ARG_UNUSED(p2);
+    ARG_UNUSED(p3);
+
+    if(ciclos == 4){
+        ciclos = 0;
+    }
+
+    int estado;
+    estado = gpio_pin_get(gpio_b, 0);
+
+}
+
 // Definição das Threads
 K_THREAD_DEFINE(a_tid, STACK_SIZE, ledVerde,
                 NULL, NULL, NULL,
@@ -148,11 +164,15 @@ K_THREAD_DEFINE(c_tid, STACK_SIZE, ledAmarelo,
 
 K_THREAD_DEFINE(d_tid, STACK_SIZE, ledVermelhoPed,
                 NULL, NULL, NULL,
-                5, 0, 0);
+                4, 0, 0);
 
 K_THREAD_DEFINE(e_tid, STACK_SIZE, ledVerdePed,
                 NULL, NULL, NULL,
-                5, 0, 0);
+                4, 0, 0);
+
+K_THREAD_DEFINE(f_tid, STACK_SIZE, controle,
+                NULL, NULL, NULL,
+                2, 0, 0);
 
 void main(void) {
     int ret;
@@ -189,8 +209,8 @@ void main(void) {
 
     gpio_pin_configure(gpio_b, 0, GPIO_OUTPUT); // PTB0 é o vermelho
     gpio_pin_configure(gpio_b, 1, GPIO_OUTPUT); // PTB1 é o verde
-    gpio_pin_set(gpio_b, 0, 1); // Por lógica, deixarei o led vermelho
-                                // Ligando na inicialização (segurança)
+    gpio_pin_configure(gpio_b, 2, GPIO_INPUT); // Botão de Semáforos (CHECAR PINO)
+    gpio_pin_set(gpio_b, 0, 0);
     gpio_pin_set(gpio_b, 1, 0);
 
     k_sem_give(&verde);
