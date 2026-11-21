@@ -39,6 +39,7 @@ static const struct gpio_dt_spec led2 = GPIO_DT_SPEC_GET(LED2_NODE, gpios);
 atomic_t pedestre = ATOMIC_INIT(0);
 int ciclos = 0;
 #define STACK_SIZE 1024
+#define LIMITE_CICLOS 4
 
 K_EVENT_DEFINE(evento_controle);
 #define FIM_CICLO BIT(0)
@@ -49,6 +50,7 @@ K_SEM_DEFINE(vermelho, 0, 1);
 K_SEM_DEFINE(vermelhoped, 0, 1);
 K_SEM_DEFINE(verdeped, 0, 1);
 K_MUTEX_DEFINE(mutex_estado);
+K_SEM_DEFINE(retoma_carros, 0, 1);
 
 void ledVerde(void *p1, void *p2, void *p3) {
 
@@ -92,13 +94,17 @@ void ledVermelho(void *p1, void *p2, void *p3) {
 
     while(1){
         k_sem_take(&vermelho, K_FOREVER);
-        atomic_set(&pedestre, 1); // Carros parados
         gpio_pin_set_dt(&led2, 1);
         k_sem_give(&vermelhoped);
         k_msleep(4000);
-        gpio_pin_set_dt(&led2, 0);
         k_event_post(&evento_controle, FIM_CICLO);
-        k_sem_give(&verde);
+
+        k_sem_take(&retoma_carros, K_FOREVER);
+
+        if (atomic_get(&pedestre) == 0) {
+            gpio_pin_set_dt(&led2, 0);
+            k_sem_give(&verde);
+        }
     }
 }
 
@@ -146,19 +152,38 @@ void controle(void *p1, void *p2, void *p3) {
 
     while(1){
 
+        // Aguarda o fim de um ciclo dos carros
         k_event_wait(&evento_controle, FIM_CICLO, true, K_FOREVER);
 
         k_mutex_lock(&mutex_estado, K_FOREVER);
 
         ciclos++;
 
-        if(ciclos == 4){
+        // Verifica se chegou o momento da fase de pedestres
+        if(ciclos >= LIMITE_CICLOS){
+
             ciclos = 0;
+
+            k_mutex_unlock(&mutex_estado);
+
+            // Carros parados, pedestres liberados
+            atomic_set(&pedestre, 1);
+            k_sem_give(&vermelhoped);
+
+            // Duração da fase de pedestres
+            k_msleep(4000);
+
+            // Carros liberados, pedestres parados
+            atomic_set(&pedestre, 0);
+            k_sem_give(&vermelhoped);
+        }
+        else{
+            k_mutex_unlock(&mutex_estado);
         }
 
-        k_mutex_unlock(&mutex_estado);
+        // Libera os carros para o próximo ciclo
+        k_sem_give(&retoma_carros);
     }
-
 }
 
 // Definição das Threads
@@ -222,8 +247,8 @@ void main(void) {
     gpio_pin_configure(gpio_b, 0, GPIO_OUTPUT); // PTB0 é o vermelho
     gpio_pin_configure(gpio_b, 1, GPIO_OUTPUT); // PTB1 é o verde
     gpio_pin_configure(gpio_b, 2, GPIO_INPUT); // Botão de Semáforos (CHECAR PINO)
-    gpio_pin_set(gpio_b, 0, 0);
-    gpio_pin_set(gpio_b, 1, 0);
+    gpio_pin_set(gpio_b, 0, 1); // Vermelho de pedestres ligado
+    gpio_pin_set(gpio_b, 1, 0); // Verde de pedestres desligado
 
     k_sem_give(&verde);
     
