@@ -37,6 +37,7 @@ static const struct gpio_dt_spec led2 = GPIO_DT_SPEC_GET(LED2_NODE, gpios);
 #endif
 
 atomic_t pedestre = ATOMIC_INIT(0);
+atomic_t pedido_pedestre = ATOMIC_INIT(0);
 int ciclos = 0;
 #define STACK_SIZE 1024
 #define LIMITE_CICLOS 4
@@ -51,6 +52,15 @@ K_SEM_DEFINE(vermelhoped, 0, 1);
 K_SEM_DEFINE(verdeped, 0, 1);
 K_MUTEX_DEFINE(mutex_estado);
 K_SEM_DEFINE(retoma_carros, 0, 1);
+
+static struct gpio_callback botao_callback;
+
+void botao_pressionado(const struct device *dev,
+                       struct gpio_callback *cb,
+                       uint32_t pins)
+{
+    atomic_set(&pedido_pedestre, 1);
+}
 
 void ledVerde(void *p1, void *p2, void *p3) {
 
@@ -160,7 +170,7 @@ void controle(void *p1, void *p2, void *p3) {
         ciclos++;
 
         // Verifica se chegou o momento da fase de pedestres
-        if(ciclos >= LIMITE_CICLOS){
+        if(ciclos >= LIMITE_CICLOS|| atomic_get(&pedido_pedestre) == 1){
 
             ciclos = 0;
 
@@ -175,6 +185,7 @@ void controle(void *p1, void *p2, void *p3) {
 
             // Carros liberados, pedestres parados
             atomic_set(&pedestre, 0);
+            atomic_set(&pedido_pedestre, 0);
             k_sem_give(&vermelhoped);
         }
         else{
@@ -246,9 +257,17 @@ void main(void) {
 
     gpio_pin_configure(gpio_b, 0, GPIO_OUTPUT); // PTB0 é o vermelho
     gpio_pin_configure(gpio_b, 1, GPIO_OUTPUT); // PTB1 é o verde
-    gpio_pin_configure(gpio_b, 2, GPIO_INPUT); // Botão de Semáforos (CHECAR PINO)
+    gpio_pin_configure(gpio_b, 2, GPIO_INPUT | GPIO_PULL_UP); // Botão de Pedestre (CHECAR PINO)
     gpio_pin_set(gpio_b, 0, 1); // Vermelho de pedestres ligado
     gpio_pin_set(gpio_b, 1, 0); // Verde de pedestres desligado
+
+    // Configura o callback do botão
+    gpio_init_callback(&botao_callback, botao_pressionado, BIT(2));
+
+    gpio_add_callback(gpio_b, &botao_callback);
+
+    // Interrupção ao pressionar o botão
+    gpio_pin_interrupt_configure(gpio_b, 2, GPIO_INT_EDGE_FALLING);
 
     k_sem_give(&verde);
     
