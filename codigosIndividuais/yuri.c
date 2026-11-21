@@ -37,14 +37,18 @@ static const struct gpio_dt_spec led2 = GPIO_DT_SPEC_GET(LED2_NODE, gpios);
 #endif
 
 atomic_t pedestre = ATOMIC_INIT(0);
-volatile int ciclos = 0;
+int ciclos = 0;
 #define STACK_SIZE 1024
+
+K_EVENT_DEFINE(evento_controle);
+#define FIM_CICLO BIT(0)
 
 K_SEM_DEFINE(verde, 0, 1);
 K_SEM_DEFINE(amarelo, 0, 1);
 K_SEM_DEFINE(vermelho, 0, 1);
 K_SEM_DEFINE(vermelhoped, 0, 1);
 K_SEM_DEFINE(verdeped, 0, 1);
+K_MUTEX_DEFINE(mutex_estado);
 
 void ledVerde(void *p1, void *p2, void *p3) {
 
@@ -89,11 +93,11 @@ void ledVermelho(void *p1, void *p2, void *p3) {
     while(1){
         k_sem_take(&vermelho, K_FOREVER);
         atomic_set(&pedestre, 1); // Carros parados
-        k_sem_give(&vermelhoped);
         gpio_pin_set_dt(&led2, 1);
+        k_sem_give(&vermelhoped);
         k_msleep(4000);
         gpio_pin_set_dt(&led2, 0);
-        ciclos++;
+        k_event_post(&evento_controle, FIM_CICLO);
         k_sem_give(&verde);
     }
 }
@@ -140,12 +144,20 @@ void controle(void *p1, void *p2, void *p3) {
     ARG_UNUSED(p2);
     ARG_UNUSED(p3);
 
-    if(ciclos == 4){
-        ciclos = 0;
-    }
+    while(1){
 
-    int estado;
-    estado = gpio_pin_get(gpio_b, 0);
+        k_event_wait(&evento_controle, FIM_CICLO, true, K_FOREVER);
+
+        k_mutex_lock(&mutex_estado, K_FOREVER);
+
+        ciclos++;
+
+        if(ciclos == 4){
+            ciclos = 0;
+        }
+
+        k_mutex_unlock(&mutex_estado);
+    }
 
 }
 
