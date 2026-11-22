@@ -1,4 +1,5 @@
 // Código sendo feito pelo Matheus
+//teste sincronizacao
 
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/gpio.h>
