@@ -1,5 +1,6 @@
 // Código sendo feito pelo Yuri
-// Há um semáforo de carros funcionando abaixo
+// Há um semáforo de carros funcionando abaixo com pedestres
+// Há o modo noturno configurado com ifdef
 
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/gpio.h>
@@ -8,6 +9,13 @@
 #include <stdint.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/atomic.h>
+
+#define MODO_NORMAL 0
+#define MODO_NOTURNO 1
+
+#define MODO_ATUAL MODO_NOTURNO 
+        // Basta alterar para MODO_ATUAL ou MODO_NOTURNO a segunda variável
+        // Para escolher o modo de funcionamento
 
 // Define o LED usando Device Tree
 #define LED0_NODE DT_ALIAS(led0) // Verde
@@ -68,6 +76,14 @@ void ledVerde(void *p1, void *p2, void *p3) {
     ARG_UNUSED(p2);
     ARG_UNUSED(p3);
 
+#if MODO_ATUAL == MODO_NOTURNO
+
+    while(1){
+        k_sleep(K_FOREVER);
+    }
+
+#else
+
     while(1){
         k_sem_take(&verde, K_FOREVER);
         atomic_set(&pedestre, 0); // Carros liberados
@@ -77,6 +93,9 @@ void ledVerde(void *p1, void *p2, void *p3) {
         gpio_pin_set_dt(&led, 0);
         k_sem_give(&amarelo);
     }
+
+#endif
+
 }
 
 void ledAmarelo(void *p1, void *p2, void *p3) {
@@ -84,6 +103,19 @@ void ledAmarelo(void *p1, void *p2, void *p3) {
     ARG_UNUSED(p1);
     ARG_UNUSED(p2);
     ARG_UNUSED(p3);
+
+#if MODO_ATUAL == MODO_NOTURNO
+
+    while(1){
+        gpio_pin_set_dt(&led, 1);
+        gpio_pin_set_dt(&led2, 1);
+        k_msleep(1000);
+        gpio_pin_set_dt(&led, 0);
+        gpio_pin_set_dt(&led2, 0);
+        k_msleep(1000);
+    }
+    
+#else
 
     while(1){
         k_sem_take(&amarelo, K_FOREVER);
@@ -94,6 +126,9 @@ void ledAmarelo(void *p1, void *p2, void *p3) {
         gpio_pin_set_dt(&led2, 0);
         k_sem_give(&vermelho);
     }
+
+#endif
+
 }
 
 void ledVermelho(void *p1, void *p2, void *p3) {
@@ -101,6 +136,14 @@ void ledVermelho(void *p1, void *p2, void *p3) {
     ARG_UNUSED(p1);
     ARG_UNUSED(p2);
     ARG_UNUSED(p3);
+
+#if MODO_ATUAL == MODO_NOTURNO
+
+    while(1){
+        k_sleep(K_FOREVER);
+    }
+
+#else
 
     while(1){
         k_sem_take(&vermelho, K_FOREVER);
@@ -116,6 +159,9 @@ void ledVermelho(void *p1, void *p2, void *p3) {
             k_sem_give(&verde);
         }
     }
+
+#endif
+
 }
 
 void ledVermelhoPed(void *p1, void *p2, void *p3) {
@@ -123,6 +169,17 @@ void ledVermelhoPed(void *p1, void *p2, void *p3) {
     ARG_UNUSED(p1);
     ARG_UNUSED(p2);
     ARG_UNUSED(p3);
+
+#if MODO_ATUAL == MODO_NOTURNO
+
+    while(1){
+        gpio_pin_set(gpio_b, 0, 1);
+        k_msleep(1000);
+        gpio_pin_set(gpio_b, 0, 0);
+        k_msleep(1000);
+    }
+
+#else
 
     while(1){
         k_sem_take(&vermelhoped, K_FOREVER);
@@ -135,6 +192,8 @@ void ledVermelhoPed(void *p1, void *p2, void *p3) {
         k_sem_give(&verdeped);
     }
 
+#endif
+
 }
 
 void ledVerdePed(void *p1, void *p2, void *p3) {
@@ -142,6 +201,14 @@ void ledVerdePed(void *p1, void *p2, void *p3) {
     ARG_UNUSED(p1);
     ARG_UNUSED(p2);
     ARG_UNUSED(p3);
+
+#if MODO_ATUAL == MODO_NOTURNO
+
+    while(1){
+        k_sleep(K_FOREVER);
+    }
+
+#else
 
     while(1){
         k_sem_take(&verdeped, K_FOREVER);
@@ -152,6 +219,9 @@ void ledVerdePed(void *p1, void *p2, void *p3) {
             gpio_pin_set(gpio_b, 1, 0);
         }
     }
+
+#endif
+
 }
 
 void controle(void *p1, void *p2, void *p3) {
@@ -159,6 +229,14 @@ void controle(void *p1, void *p2, void *p3) {
     ARG_UNUSED(p1);
     ARG_UNUSED(p2);
     ARG_UNUSED(p3);
+
+#if MODO_ATUAL == MODO_NOTURNO
+
+    while(1){
+        k_sleep(K_FOREVER);
+    }
+
+#else
 
     while(1){
 
@@ -195,6 +273,9 @@ void controle(void *p1, void *p2, void *p3) {
         // Libera os carros para o próximo ciclo
         k_sem_give(&retoma_carros);
     }
+
+#endif
+
 }
 
 // Definição das Threads
