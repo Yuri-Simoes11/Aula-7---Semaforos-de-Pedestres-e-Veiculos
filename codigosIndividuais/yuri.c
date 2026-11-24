@@ -61,15 +61,6 @@ K_SEM_DEFINE(verdeped, 0, 1);
 K_MUTEX_DEFINE(mutex_estado);
 K_SEM_DEFINE(retoma_carros, 0, 1);
 
-static struct gpio_callback botao_callback;
-
-void botao_pressionado(const struct device *dev,
-                       struct gpio_callback *cb,
-                       uint32_t pins)
-{
-    atomic_set(&pedido_pedestre, 1);
-}
-
 void ledVerde(void *p1, void *p2, void *p3) {
 
     ARG_UNUSED(p1);
@@ -338,21 +329,36 @@ void main(void) {
 
     gpio_pin_configure(gpio_b, 0, GPIO_OUTPUT); // PTB0 é o vermelho
     gpio_pin_configure(gpio_b, 1, GPIO_OUTPUT); // PTB1 é o verde
-    gpio_pin_configure(gpio_b, 2, GPIO_INPUT | GPIO_PULL_UP); // Botão de Pedestre (CHECAR PINO)
+
+    gpio_pin_configure(gpio_b, 2, GPIO_INPUT | GPIO_PULL_UP); // Botão de Pedestre
+                                                              // LIGA NO NEGATIVO PRA ACIONAR
+    printk("Configurar PTB2: %d\n", ret);
+
     gpio_pin_set(gpio_b, 0, 1); // Vermelho de pedestres ligado
     gpio_pin_set(gpio_b, 1, 0); // Verde de pedestres desligado
-
-    // Configura o callback do botão
-    gpio_init_callback(&botao_callback, botao_pressionado, BIT(2));
-
-    gpio_add_callback(gpio_b, &botao_callback);
-
-    // Interrupção ao pressionar o botão
-    gpio_pin_interrupt_configure(gpio_b, 2, GPIO_INT_EDGE_FALLING);
 
     k_sem_give(&verde);
     
     while (1) {
-        k_sleep(K_FOREVER);
+        int estado = gpio_pin_get(gpio_b, 2);
+
+        if (estado < 0) {
+            printk("Erro ao ler PTB2: %d\n", estado);
+            break;
+        }
+
+        if (estado == 0) { // Jumper conectou PTB2 ao GND
+            atomic_set(&pedido_pedestre, 1);
+
+            // Espera o jumper ser solto para não repetir o pedido
+            while (gpio_pin_get(gpio_b, 2) == 0) {
+                k_msleep(20);
+            }
+
+            // Pequeno intervalo para reduzir efeito de contato
+            k_msleep(50);
+        }
+
+        k_msleep(20);
     }
 }
