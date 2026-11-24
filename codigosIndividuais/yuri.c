@@ -13,8 +13,8 @@
 #define MODO_NORMAL 0
 #define MODO_NOTURNO 1
 
-#define MODO_ATUAL MODO_NOTURNO 
-        // Basta alterar para MODO_ATUAL ou MODO_NOTURNO a segunda variável
+#define MODO_ATUAL MODO_NORMAL
+        // Basta alterar para MODO_NORMAL ou MODO_NOTURNO a segunda variável
         // Para escolher o modo de funcionamento
 
 // Define o LED usando Device Tree
